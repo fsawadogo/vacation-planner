@@ -1,4 +1,3 @@
-import React from 'react';
 import { MapPin, Navigation, Star, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
