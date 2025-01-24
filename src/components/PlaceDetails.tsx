@@ -78,20 +78,6 @@ export function PlaceDetails({ place, onClose }: { place: Place; onClose: () => 
             </div>
           </div>
         </div>
-
-        {/* <div className="p-6 bg-gray-50 mt-4">
-          <div className="aspect-w-16 aspect-h-9">
-            <iframe
-              title="Location Map"
-              className="w-full h-[300px] rounded-lg"
-              frameBorder="0"
-              src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=${encodeURIComponent(
-                place.address
-              )}`}
-              allowFullScreen
-            />
-          </div>
-        </div> */}
       </div>
     </div>
   );
