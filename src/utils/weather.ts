@@ -10,6 +10,10 @@ export interface WeatherData {
   windSpeed: number;
 }
 
+export interface ForecastData extends WeatherData {
+  date: string;
+}
+
 export const fetchWeather = async (city: string): Promise<WeatherData | null> => {
   try {
     const response = await fetch(
@@ -35,39 +39,101 @@ export const fetchWeather = async (city: string): Promise<WeatherData | null> =>
   }
 };
 
-export const useWeather = (city: string) => {
+export const fetchForecast = async (city: string): Promise<ForecastData[]> => {
+  try {
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&units=metric&appid=${API_KEY}`
+    );
+
+    if (!response.ok) {
+      throw new Error('Forecast data not available');
+    }
+
+    const data = await response.json();
+    
+    // Group forecasts by day and get the middle of day forecast (around noon)
+    const dailyForecasts = new Map<string, any>();
+    
+    data.list.forEach((forecast: any) => {
+      const date = new Date(forecast.dt * 1000);
+      const dateKey = date.toISOString().split('T')[0];
+      const hour = date.getHours();
+      
+      // Prefer forecasts around noon (12:00) for each day
+      if (!dailyForecasts.has(dateKey) || Math.abs(hour - 12) < Math.abs(new Date(dailyForecasts.get(dateKey).dt * 1000).getHours() - 12)) {
+        dailyForecasts.set(dateKey, forecast);
+      }
+    });
+
+    return Array.from(dailyForecasts.values()).map(forecast => ({
+      date: new Date(forecast.dt * 1000).toISOString().split('T')[0],
+      temp: Math.round(forecast.main.temp),
+      description: forecast.weather[0].description,
+      icon: forecast.weather[0].icon,
+      humidity: forecast.main.humidity,
+      windSpeed: Math.round(forecast.wind.speed),
+    }));
+  } catch (error) {
+    console.error('Error fetching forecast:', error);
+    return [];
+  }
+};
+
+export const useWeather = (city: string, startDate?: string, endDate?: string) => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [forecast, setForecast] = useState<ForecastData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    const getWeather = async () => {
+    const getWeatherData = async () => {
       if (!city) {
         setWeather(null);
+        setForecast([]);
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      const data = await fetchWeather(city);
+      
+      const [currentWeather, forecastData] = await Promise.all([
+        fetchWeather(city),
+        fetchForecast(city)
+      ]);
       
       if (mounted) {
-        setWeather(data);
+        setWeather(currentWeather);
+        
+        if (startDate && endDate) {
+          // Filter forecast for trip duration
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          
+          const tripForecast = forecastData.filter(day => {
+            const date = new Date(day.date);
+            return date >= start && date <= end;
+          });
+          
+          setForecast(tripForecast);
+        } else {
+          setForecast(forecastData.slice(0, 5)); // Show next 5 days if no dates selected
+        }
+        
         setLoading(false);
       }
     };
 
-    getWeather();
+    getWeatherData();
 
     // Update weather every 30 minutes
-    const interval = setInterval(getWeather, 30 * 60 * 1000);
+    const interval = setInterval(getWeatherData, 30 * 60 * 1000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [city]);
+  }, [city, startDate, endDate]);
 
-  return { weather, loading };
+  return { weather, forecast, loading };
 };

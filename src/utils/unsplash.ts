@@ -9,6 +9,7 @@ const FALLBACK_IMAGES = {
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
+const FETCH_TIMEOUT = 8000; // 8 seconds
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -24,22 +25,21 @@ export const getUnsplashImage = async (destination: string): Promise<string> => 
     try {
       // Add a timeout to the fetch request
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-      // Use a more specific search query with multiple relevant terms
+      // Create a more specific search query
       const searchTerms = [
         destination,
-        'landmark',
         'travel',
-        'tourism',
-        'destination'
-      ].join(' ');
+        'destination',
+        'landmark',
+        'scenic'
+      ].filter(Boolean).join(' ');
       
       const searchQuery = encodeURIComponent(searchTerms);
       const imageUrl = `https://source.unsplash.com/featured/1600x900/?${searchQuery}`;
       
       const response = await fetch(imageUrl, { 
-        method: 'GET', // Changed from HEAD to GET for more reliable results
         signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
@@ -59,8 +59,12 @@ export const getUnsplashImage = async (destination: string): Promise<string> => 
         throw new Error('Invalid image URL received');
       }
       
-      // Verify the image is accessible
-      const imageResponse = await fetch(finalUrl, { method: 'HEAD' });
+      // Verify the image is accessible with a HEAD request
+      const imageResponse = await fetch(finalUrl, { 
+        method: 'HEAD',
+        signal: controller.signal
+      });
+      
       if (!imageResponse.ok) {
         throw new Error('Image not accessible');
       }
@@ -79,21 +83,21 @@ export const getUnsplashImage = async (destination: string): Promise<string> => 
     }
   }
 
-  // If all retries failed, log the error and return a fallback image
-  console.error('Error fetching Unsplash image after all retries:', lastError);
+  // If all retries failed, return a relevant fallback image
+  console.warn('Using fallback image after all retries failed:', lastError);
   return chooseFallbackImage(destination);
 };
 
 function chooseFallbackImage(destination: string): string {
   const destinationLower = destination.toLowerCase();
   
-  // More comprehensive keyword matching with multiple variations
+  // Comprehensive keyword matching
   const keywords = {
-    beach: ['beach', 'coast', 'island', 'sea', 'ocean', 'shore', 'bay'],
-    mountain: ['mountain', 'hill', 'alps', 'peak', 'summit', 'highlands', 'valley'],
-    city: ['city', 'town', 'metropolis', 'urban', 'downtown', 'skyline'],
-    food: ['food', 'cuisine', 'restaurant', 'dining', 'gastronomy', 'culinary'],
-    culture: ['culture', 'museum', 'art', 'history', 'monument', 'heritage', 'landmark']
+    beach: ['beach', 'coast', 'island', 'sea', 'ocean', 'shore', 'bay', 'tropical'],
+    mountain: ['mountain', 'hill', 'alps', 'peak', 'summit', 'highlands', 'valley', 'hiking'],
+    city: ['city', 'town', 'metropolis', 'urban', 'downtown', 'skyline', 'street'],
+    food: ['food', 'cuisine', 'restaurant', 'dining', 'gastronomy', 'culinary', 'cafe'],
+    culture: ['culture', 'museum', 'art', 'history', 'monument', 'heritage', 'landmark', 'temple']
   };
   
   // Check each category against the destination
@@ -103,12 +107,12 @@ function chooseFallbackImage(destination: string): string {
     }
   }
   
-  // If no specific category matches, try to make an educated guess based on common destinations
+  // Common destinations mapping
   const commonDestinations = {
-    beach: ['miami', 'hawaii', 'bali', 'maldives', 'caribbean'],
-    mountain: ['alps', 'rockies', 'himalaya', 'andes', 'sierra'],
-    city: ['york', 'london', 'paris', 'tokyo', 'francisco'],
-    culture: ['rome', 'athens', 'cairo', 'kyoto', 'istanbul']
+    beach: ['miami', 'hawaii', 'bali', 'maldives', 'caribbean', 'cancun', 'phuket'],
+    mountain: ['alps', 'rockies', 'himalaya', 'andes', 'sierra', 'colorado', 'switzerland'],
+    city: ['york', 'london', 'paris', 'tokyo', 'francisco', 'singapore', 'dubai'],
+    culture: ['rome', 'athens', 'cairo', 'kyoto', 'istanbul', 'beijing', 'delhi']
   };
   
   for (const [category, places] of Object.entries(commonDestinations)) {
